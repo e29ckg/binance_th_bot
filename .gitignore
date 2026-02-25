@@ -1,0 +1,8 @@
+# ไม่เอาไฟล์ตั้งค่าความลับ
+.env
+
+# ไม่เอาไฟล์ Database และ Logs
+*.db
+*.db-wal
+*.db-shm
+__pycache__/

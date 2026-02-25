@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Binance Auto Bot Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white min-h-screen p-8">
+
+    <div class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <div class="lg:col-span-1 bg-gray-800 rounded-xl shadow-lg p-6 flex flex-col h-[500px]">
+            <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full bg-green-500 animate-pulse"></span>
+                Live System Logs
+            </h2>
+            <div id="logContainer" class="flex-1 overflow-y-auto bg-black p-4 rounded-lg font-mono text-sm space-y-1">
+                <div class="text-gray-500">System initialized. Waiting for data...</div>
+            </div>
+        </div>
+
+        <div class="lg:col-span-2 bg-gray-800 rounded-xl shadow-lg p-6 h-[500px] flex flex-col">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold">Trade History</h2>
+                <button onclick="fetchTradeHistory()" class="text-sm bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded transition">
+                    Refresh
+                </button>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-gray-700 sticky top-0">
+                        <tr>
+                            <th class="p-3 rounded-tl-lg">Time</th>
+                            <th class="p-3">Symbol</th>
+                            <th class="p-3">Side</th>
+                            <th class="p-3">Price</th>
+                            <th class="p-3">Amount</th>
+                            <th class="p-3">Strategy</th>
+                            <th class="p-3 rounded-tr-lg">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tradeTableBody" class="divide-y divide-gray-700">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 1. การเชื่อมต่อ WebSocket สำหรับ Logs
+        const ws = new WebSocket("ws://localhost:8000/ws/dashboard");
+        const logContainer = document.getElementById("logContainer");
+
+        ws.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            appendLog(data.type, data.msg);
+        };
+
+        function appendLog(type, msg) {
+            // กำหนดสีข้อความตามประเภทของ Log
+            let colorClass = "text-gray-300"; // ค่าเริ่มต้น (info)
+            if (type === "success") colorClass = "text-green-400";
+            if (type === "error") colorClass = "text-red-500";
+            if (type === "warning") colorClass = "text-yellow-400";
+
+            const time = new Date().toLocaleTimeString();
+            const logElement = document.createElement("div");
+            logElement.className = colorClass;
+            logElement.innerHTML = `[${time}] ${msg}`;
+            
+            // เพิ่มข้อความใหม่ลงไป และเลื่อน Scroll ลงล่างสุดอัตโนมัติ
+            logContainer.appendChild(logElement);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        // 2. การดึงข้อมูลประวัติการเทรดจาก API
+        async function fetchTradeHistory() {
+            try {
+                // เรียก API ที่เราเพิ่งสร้างใน main.py
+                const response = await fetch("http://localhost:8000/api/trades");
+                const trades = await response.json();
+                
+                const tableBody = document.getElementById("tradeTableBody");
+                tableBody.innerHTML = ""; // เคลียร์ข้อมูลเก่าก่อน
+
+                trades.forEach(trade => {
+                    // จัดรูปแบบสีของตัวอักษร BUY เป็นสีเขียว, SELL เป็นสีแดง
+                    const sideColor = trade.side === 'BUY' ? 'text-green-400 font-bold' : 'text-red-400 font-bold';
+                    const statusColor = trade.status === 'OPEN' ? 'text-yellow-400' : 'text-gray-400';
+                    
+                    // แปลงเวลาให้ดูอ่านง่ายขึ้น
+                    const localTime = new Date(trade.timestamp).toLocaleString();
+
+                    const row = `
+                        <tr class="hover:bg-gray-700 transition">
+                            <td class="p-3 text-gray-400">${localTime}</td>
+                            <td class="p-3 font-semibold">${trade.symbol}</td>
+                            <td class="p-3 ${sideColor}">${trade.side}</td>
+                            <td class="p-3">${trade.price.toFixed(4)}</td>
+                            <td class="p-3">${trade.amount.toFixed(6)}</td>
+                            <td class="p-3 text-blue-300">#${trade.strategy}</td>
+                            <td class="p-3 ${statusColor}">${trade.status}</td>
+                        </tr>
+                    `;
+                    tableBody.innerHTML += row;
+                });
+            } catch (error) {
+                appendLog("error", "Failed to fetch trade history: " + error.message);
+            }
+        }
+
+        // ดึงข้อมูลตารางทันทีที่เปิดหน้าเว็บ
+        window.onload = () => {
+            fetchTradeHistory();
+            appendLog("success", "Dashboard connected successfully!");
+        };
+    </script>
+</body>
+</html>
